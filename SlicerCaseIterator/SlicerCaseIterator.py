@@ -16,6 +16,7 @@ from collections import OrderedDict
 import logging
 import os
 import datetime
+import numpy as np
 
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -221,7 +222,7 @@ class SlicerCaseIteratorWidget(ScriptedLoadableModuleWidget):
     # Save masks
     #
     self.chkSaveMasks = qt.QCheckBox()
-    self.chkSaveMasks.checked = 0
+    self.chkSaveMasks.checked = 1
     self.chkSaveMasks.toolTip = 'save all initially loaded masks when proceeding to next case'
     outputParametersFormLayout.addRow('Save loaded masks', self.chkSaveMasks)
 
@@ -687,10 +688,10 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
                 self.post_T1_label = i[0]
             if i[1] in [15,16]:
                 print ("Found post ADC label")
-                self.pre_ADC_label = i[0]
+                self.post_ADC_label = i[0]
             if i[1] in [7,17]:
                 print ("Found pre ADC label")
-                self.post_ADC_label = i[0]
+                self.pre_ADC_label = i[0]
 
   def load_data_to_placeholders(self,subject_dir):
           self.image_root = subject_dir
@@ -716,11 +717,48 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
                                   slicer.mrmlScene.AddNode(seg_node)
                                   load_success = slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(ma_node, seg_node) & load_success
                                   slicer.mrmlScene.RemoveNode(ma_node)
+                                  seg_node.SetName(j+"_segment")
                                   labels.append([seg_node,count])
-                                  print (seg_node,count)
+                                  #print (seg_node,count)
 
           return raws, labels
 
+  def get_composite_node(self,sliceViewName):
+            layoutManager = slicer.app.layoutManager()
+            view = layoutManager.sliceWidget(sliceViewName).sliceView()
+            sliceNode = view.mrmlSliceNode()
+            sliceLogic = slicer.app.applicationLogic().GetSliceLogic(sliceNode)
+            compositeNode = sliceLogic.GetSliceCompositeNode()
+            return compositeNode
+  def SliceGetID(self,sliceNode):
+    return sliceNode.GetID()
+
+  def GetName(self,node):
+    return node.GetName()
+
+  def correct_volumesLoad(self,volumesNode_list,labelmapNode_list):
+    
+    if labelmapNode_list[0] is not None:
+      seg_name = labelmapNode_list[0].GetName()
+      if seg_name[:seg_name.find("_segment")] in self.post_T1_LA.GetName():
+        volumesNode_list[0] = self.post_T1_LA
+    
+    if labelmapNode_list[1] is not None:
+      seg_name = labelmapNode_list[1].GetName()
+      if seg_name[:seg_name.find("_segment")] in self.pre_T1_LA.GetName():
+        volumesNode_list[1] = self.pre_T1_LA
+
+    if labelmapNode_list[2] is not None:
+      seg_name = labelmapNode_list[2].GetName()
+      if seg_name[:seg_name.find("_segment")] in self.post_ADC_Eq_1.GetName():
+        volumesNode_list[2] = self.post_ADC_Eq_1
+
+    if labelmapNode_list[3] is not None:
+      seg_name = labelmapNode_list[3].GetName()
+      if seg_name[:seg_name.find("_segment")] in self.pre_ADC_Eq_1.GetName():
+        volumesNode_list[3] = self.pre_ADC_Eq_1
+
+    return volumesNode_list
 
   def _loadImages(self,subject):
 
@@ -728,12 +766,14 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
 
             self.select_placeholder_for_view(subject)
 
-            self.volumesLoad = [self.pre_T1_EA,self.post_ADC,self.post_T1_EA, 
+            self.volumesLoad = [self.post_T1_EA,self.pre_T1_EA,self.post_ADC, 
                                   self.pre_ADC]
-
             
-            self.labelVolumesLoad = [self.pre_T1_label,self.post_ADC_label,self.post_T1_label,
+            self.labelVolumesLoad = [self.post_T1_label,self.pre_T1_label,self.post_ADC_label,
                                                          self.pre_ADC_label]
+
+            self.volumesLoad = self.correct_volumesLoad(self.volumesLoad,self.labelVolumesLoad)
+
             
             #Disable auto showing of master volume whenever segment editor loads or master volume is changed
             segmentEditorWidget = slicer.modules.segmenteditor.widgetRepresentation().self().editor
@@ -742,8 +782,8 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
             
             #Load background volume to each view
             layoutManager = slicer.app.layoutManager()
-            print (layoutManager.sliceViewNames())
-            for i,sliceViewName in enumerate(layoutManager.sliceViewNames()):
+            sliceViews = layoutManager.sliceViewNames()
+            for i,sliceViewName in enumerate(sorted(sliceViews)):
               view = layoutManager.sliceWidget(sliceViewName).sliceView()
               sliceNode = view.mrmlSliceNode()
               sliceLogic = slicer.app.applicationLogic().GetSliceLogic(sliceNode)
@@ -751,28 +791,47 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
 
               
               try:
-                print ("Loading Viewer "+str(sliceViewName.GetName()))
+                print ("Loading Viewer "+str(compositeNode.GetSingletonTag())+" with Background Image "+str(self.volumesLoad[i].GetName()))
                 compositeNode.SetBackgroundVolumeID(self.volumesLoad[i].GetID())
 
               except:
-                print ("Failed Loading Viewer"+str(sliceViewName.GetName())
+                print ("Failed Loading Viewer"+str(compositeNode.GetID()))
             
             #Load appropriate segmentation for to each view and set each view to 'axial'
             sliceNodes = slicer.util.getNodesByClass('vtkMRMLSliceNode')
-            print (sliceNodes)
-            for i,sliceNode in enumerate(sliceNodes):
+            #print (sorted(sliceNodes,key=self.SliceGetID))
+            for i,sliceNode in enumerate(sorted(sliceNodes, key=self.SliceGetID)):
               sliceNode.SetOrientation("Axial")
+              #print ("Number: "+str(i)+" and View: "+str(sliceNode.GetName()))
               segNode = self.labelVolumesLoad[i]
+              if self.volumesLoad[i] == None:
+                pass
               if self.labelVolumesLoad[i] == None:
                 print ("No segmentation for view "+str(sliceNode.GetName()))
+                print ("Making Empty "+str(self.volumesLoad[i].GetName())+" Segmentation for view "+str(sliceNode.GetName()))
+
+                #Create New Segmentation Node
+                segNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+                segNode.SetName(self.volumesLoad[i].GetName()+"_segment")
+                segNode.SetReferenceImageGeometryParameterFromVolumeNode(self.volumesLoad[i])
+
+                #Create New Segmentation Display Node for New Segmentation Node
+                segmentationDisplayNode=slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationDisplayNode')
+                segNode.AddAndObserveDisplayNodeID(segmentationDisplayNode.GetID())
+                segmentationDisplayNode.SetDisplayableOnlyInView(sliceNode.GetID())
+
+                #Add Empty Target and Background Segments to New Segmentation                
+                segmentation = segNode.GetSegmentation()
+                segmentation.AddEmptySegment("Target")
+                segmentation.AddEmptySegment("Background")
+
                 pass
               else:
-                for otherSliceNode in sliceNodes:
-                  if otherSliceNode != sliceNode: 
-                    segmentationDisplayNode = segNode.GetDisplayNode()
-                    segmentationDisplayNode.SetViewNodeIDs(sliceNode)
-                    segmentationDisplayNode.SetSegmentVisibility('Segment_1',False)
-                    segmentationDisplayNode.SetSegmentVisibility('Segment_2',False)
+                print ("For this view: "+str(sliceNode.GetName()))
+                print ("Show Exisiting Segment Label: "+str(segNode.GetName()))
+                segmentationDisplayNode = segNode.GetDisplayNode()
+                segmentationDisplayNode.SetDisplayableOnlyInView(sliceNode.GetID())
+                segNode.SetReferenceImageGeometryParameterFromVolumeNode(self.volumesLoad[i])
 
             for sliceViewName in layoutManager.sliceViewNames():
               controller = layoutManager.sliceWidget(sliceViewName).sliceController()
@@ -944,38 +1003,57 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
     volbasename = os.path.basename(volName)
     return volbasename
   #------------------------------------------------------------------------------
+  def getNameVolumeNode(self,volNode):
+    volName = volNode.GetStorageNode().GetFullNameFromFileName()
+    volbasename = os.path.basename(volName)
+    name = volbasename[:volbasename.find(".nii.gz")]
+    return name
+
+  #------------------------------------------------------------------------------
   def _saveMasks(self, nodes, folder, reader_name=None):
+
     for nodename, node in nodes.iteritems():
-
-      master_full_name = self.getMasterVolumeName()
-      master_name = master_full_name[:master_full_name.find(".nii.gz")]
-      print (reader_name)
-      print (master_full_name)
-      
-      # Add the readername if set
-      if reader_name is not None:
-        master_name += '_tumor_' + reader_name
-      filename = os.path.join(folder, master_name)
-
-      # Convert Segmentation to LabelMap
-      labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
-      slicer.modules.segmentations.logic().ExportAllSegmentsToLabelmapNode(node, labelmapVolumeNode)
-
-      # Prevent overwriting existing files
-      if os.path.exists(filename + '.nii.gz'):
-        self.logger.debug('Filename exists! Generating unique name...')
-        idx = 1
-        filename += '(%d).nii.gz'
-        while os.path.exists(filename % idx):
-          idx += 1
-        filename = filename % idx
+      try:
+        segment_array = slicer.util.arrayFromSegment(node,node.GetSegmentation().GetNthSegmentID(0))
+      except AttributeError as e:
+        print (e)
+        print ("Could Not Calculate Array For First Segment Because It's Empty --> Not Saving")
+        segment_array = 0.0
+      if np.mean(segment_array) == 0.0:
+        pass
       else:
-        filename += '.nii.gz'
+        masterVolumeNode = node.GetNodeReference(node.GetReferenceImageGeometryReferenceRole())
+        name = masterVolumeNode.GetName()
 
-      # Save the node
-      print ("About to save "+filename+" as label map from segment")
-      slicer.util.saveNode(labelmapVolumeNode, filename)
-      self.logger.info('Saved node %s in %s', labelmapVolumeNode, filename)
+        # Add the readername if set
+        if reader_name is not None:
+          name += '_tumor_' + reader_name
+        filename = os.path.join(folder, name)
+
+        #Grab Segment IDs and Put Into VTK Array
+        segmentation = node.GetSegmentation()
+        segmentIds = vtk.vtkStringArray()
+        segmentation.GetSegmentIDs(segmentIds)
+
+        # Convert Segmentation to LabelMap
+        labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
+        slicer.modules.segmentations.logic().ExportSegmentsToLabelmapNode(node,segmentIds, labelmapVolumeNode, masterVolumeNode)
+
+        # # Prevent overwriting existing files
+        # if os.path.exists(filename + '.nii.gz'):
+        #   self.logger.debug('Filename exists! Generating unique name...')
+        #   idx = 1
+        #   filename += '(%d).nii.gz'
+        #   while os.path.exists(filename % idx):
+        #     idx += 1
+        #   filename = filename % idx
+        # else:
+
+        filename += '.nii.gz'
+        # Save the node
+        print ("About to save "+filename+" as label map from segment")
+        slicer.util.saveNode(labelmapVolumeNode, filename)
+        self.logger.info('Saved node %s in %s', labelmapVolumeNode.GetName(), filename)
                 
     #------------------------------------------------------------------------------
 
