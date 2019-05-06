@@ -1,7 +1,8 @@
 # SlicerHCCCaseIterator
 
 SlicerHCCCaseIterator is a scripted module extension for 3D slicer. It is a customized version of the 
-SlicerCaseIterator built specifically for annotation of MRI abdomen studies before and after a treatment.
+[SlicerCaseIterator](https://github.com/JoostJM/SlicerCaseIterator) by [Joost van Griethuysen](https://github.com/JoostJM)
+built specifically for annotation of MRI abdomen studies before and after a treatment.
 It's purpose is to streamline the segmentation of image datasets by handling
 loading and saving. This customized version for HCC labeling pre- and post-treatment requires a specific
 naming convention and is used in conjunction with custom DICOM to nifti conversion/deidentification script
