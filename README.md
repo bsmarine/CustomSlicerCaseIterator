@@ -7,7 +7,7 @@ It's purpose is to streamline the segmentation of image datasets by handling
 loading and saving. This customized version for HCC labeling pre- and post-treatment requires a specific
 naming convention and is used in conjunction with custom DICOM to nifti conversion/deidentification script
 that can be found at [this repository, code for DICOM Conversion to NIFTI with appropriate naming 
-convention](https://github.com/bsmarine/dicomConversionForHCCAnnotation) for the SlicerHCCCaseIterator.
+convention](https://github.com/bsmarine/dicomConversionToNiftiHCC) for the SlicerHCCCaseIterator.
 
 Example of image naming convention for given subject:
 
