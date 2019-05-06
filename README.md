@@ -33,7 +33,7 @@ Example of image naming convention for given subject:
 ### Add Module to Slicer
 
 After downloading repository locally, within Slicer go to Edit > Application Settings > Modules then click "Add"
-under "Additional Module Paths". Select the folder "SlicerHCCCaseIterator", then restart Slicer.
+under "Additional Module Paths". Select the folder "SlicerCaseIterator" in the parent folder of this repository, then restart Slicer.
 
 ### Input Data
 The input for SlicerHCCCaseIterator is a csv-file containing the folder path for each subject which contains
