@@ -17,13 +17,13 @@ each subsequent row representing one subject.
 In this version of the CaseIterator the first subject in the csv-file can be automatically loaded upon
 start-up of Slicer by including the following script in the .slicerrc.py file (typically found in user home folder):
 
-# Python commands in this file are executed on Slicer startup
+### .slicerrc.py script launched on Slicer startup
   
-  ## Go to SlicerCaseIterator on StartUp
+  #### Go to SlicerCaseIterator on StartUp
 
   slicer.util.selectModule("SlicerCaseIterator")
 
-  ## Autoload given .csv file
+  #### Autoload given .csv file
 
   logic = slicer.modules.tables.logic()
   newTable = logic.AddTable("/Users/brettmarinelli/Dropbox/IR_Work/Y90_Seg_segmentations/Review_DC.csv") ##Location of csv-file
