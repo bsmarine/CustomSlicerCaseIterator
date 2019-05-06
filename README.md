@@ -17,14 +17,15 @@ each subsequent row representing one subject.
 In this version of the CaseIterator the first subject in the csv-file can be automatically loaded upon
 start-up of Slicer by including the following script in the .slicerrc.py file (typically found in user home folder):
 
-### .slicerrc.py script launched on Slicer startup
+### .slicerrc.py script launched on Slicer startup contains:
   
   #### Go to SlicerCaseIterator on StartUp
 
-  slicer.util.selectModule("SlicerCaseIterator")
+  `slicer.util.selectModule("SlicerCaseIterator")`
 
   #### Autoload given .csv file
 
+  ```
   logic = slicer.modules.tables.logic()
   newTable = logic.AddTable("/Users/brettmarinelli/Dropbox/IR_Work/Y90_Seg_segmentations/Review_DC.csv") ##Location of csv-file
   sciw = slicer.modules.slicercaseiterator.widgetRepresentation().self()
@@ -33,6 +34,8 @@ start-up of Slicer by including the following script in the .slicerrc.py file (t
   sciw.txtReaderName.text = 'DC' ##Set the annotator initials for new segments that are created 
                                  ##and automatic loading of exiting annotations by this reader in subject folder
   sciw.onReset()  ##Automatically starts case iterator
+  
+  ```
 
 If automatic launching is not desired in the home screen of the SlicerHCCCaseITerator and if you already 
 processed some part of the batch or need to start at a specific case, you can do so by specifying the 
