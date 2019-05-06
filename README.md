@@ -5,33 +5,67 @@ SlicerCaseIterator built specifically for annotation of MRI abdomen studies befo
 It's purpose is to streamline the segmentation of image datasets by handling
 loading and saving. This customized version for HCC labeling pre- and post-treatment requires a specific
 naming convention and is used in conjunction with custom DICOM to nifti conversion/deidentification script
-that can be found at 
+that can be found at [this repository, code for DICOM Conversion to NIFTI with appropriate naming 
+convention](https://github.com/bsmarine/dicomConversionForHCCAnnotation) for the SlicerHCCCaseIterator.
+
+Example of image naming convention for given subject:
+
+```
+./Subjects/1/post_ADC.nii.gz
+./Subjects/1/post_ADC_tumor_BM.nii.gz
+./Subjects/1/post_T1_EA.nii.gz
+./Subjects/1/post_T1_EA_tumor_BM.nii.gz
+./Subjects/1/post_T1_EV.nii.gz
+./Subjects/1/post_T1_LA.nii.gz
+./Subjects/1/post_T1_PV.nii.gz
+./Subjects/1/pre_ADC.nii.gz
+./Subjects/1/pre_ADC_tumor_BM.nii.gz
+./Subjects/1/pre_T1_EA.nii.gz
+./Subjects/1/pre_T1_LA.nii.gz
+./Subjects/1/pre_T1_LA_tumor_BM.nii.gz
+./Subjects/1/pre_T1_PV.nii.gz
+./Subjects/1/pre_T1_EV.nii.gz
+./Subjects/1/pre_T1_pre.nii.gz
+```
 
 ## Usage
 
+### Add Module to Slicer
+
+After downloading repository locally, within Slicer go to Edit > Application Settings > Modules then click "Add"
+under "Additional Module Paths". Select the folder "SlicerHCCCaseIterator", then restart Slicer.
+
 ### Input Data
 The input for SlicerHCCCaseIterator is a csv-file containing the folder path for each subject which contains
-images and/or labelmaps that have to be segmented. The first row should be a header row, with
-each subsequent row representing one subject.
+images and/or labelmaps that have to be segmented. The first row should be a header row with the first column
+labeled "patient", with each subsequent row representing the relative or absolute path for patient folder. Example:
 
+| patient        |
+| ------------- |
+| ./Subjects/1      |
+| ./Subjects/2      |
+| ./Subjects/3      |
+| ...      |
+| ...      |
+
+### Automatic Launching
 In this version of the CaseIterator the first subject in the csv-file can be automatically loaded upon
-start-up of Slicer by including the following script in the .slicerrc.py file (typically found in user home folder):
-
-### .slicerrc.py script launched on Slicer startup contains:
+start-up of Slicer by including the following script in the .slicerrc.py file which is typically found in 
+user home folder eg `./Users/brettmarinelli/.slicerrc.py`
   
-  #### Go to SlicerCaseIterator on StartUp
+  ### Go to SlicerCaseIterator on StartUp
 
   `slicer.util.selectModule("SlicerCaseIterator")`
 
-  #### Autoload given .csv file
+  ### Autoload given .csv file
 
   ```
   logic = slicer.modules.tables.logic()
-  newTable = logic.AddTable("/Users/brettmarinelli/Dropbox/IR_Work/Y90_Seg_segmentations/Review_DC.csv") ##Location of csv-file
+  newTable = logic.AddTable("/file/path/to/table/with/subject/list.csv") ##Location of csv-file
   sciw = slicer.modules.slicercaseiterator.widgetRepresentation().self()
   sciw.batchTableSelector.setCurrentNode(newTable)
   sciw.batchTableView.setMRMLTableNode(newTable)
-  sciw.txtReaderName.text = 'DC' ##Set the annotator initials for new segments that are created 
+  sciw.txtReaderName.text = 'BM' ##Set the annotator initials for new segments that are created 
                                  ##and automatic loading of exiting annotations by this reader in subject folder
   sciw.onReset()  ##Automatically starts case iterator
   
