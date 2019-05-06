@@ -377,7 +377,7 @@ class SlicerCaseIteratorWidget(ScriptedLoadableModuleWidget):
 
     if 'patient' in self.caseColumns:
       patient = self.caseColumns['patient'].GetValue(self.currentIdx)
-      self.logger.info('Loading next patient (%d/%d): %s...', self.currentIdx + 1, self.caseCount, patient)
+      self.logger.info('Loading next patient (%d/%d): %s...', self.currentIdx + 1, self.caseCount, os.path.basename(patient))
     else:
       self.logger.info('Loading next patient (%d/%d)...', self.currentIdx + 1, self.caseCount)
 
@@ -412,6 +412,8 @@ class SlicerCaseIteratorWidget(ScriptedLoadableModuleWidget):
     self.nextButton.enabled = True
     self.resetButton.enabled = True
     self.nextButton.text = 'Next Case'
+
+    print ("Patient: "+os.path.basename(patient))
 
   #------------------------------------------------------------------------------
   def _getColumnValue(self, colName, is_list=False):
@@ -710,14 +712,17 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
                                   #print (j+" is found! Corresponding to filepath:"+str(i)+"And is given a count of "+str(count))
                                   img = slicer.util.loadVolume(os.path.join(subject_dir,i),returnNode=True)[1]
                                   raws.append([img,count])
-                          if j.lower()+"_tumor_"+self.reader_name in file_name:
+                          if j.lower()+"_tumor_"+self.reader_name.lower()+".nii.gz" in file_name:
                                   #print (j+" is found! Corresponding to filepath:"+str(i)+"And is given a count of "+str(count))
+                                  print ("Reader Name: "+self.reader_name)
                                   load_success, ma_node = slicer.util.loadLabelVolume(os.path.join(subject_dir,i), returnNode=True)
                                   seg_node = slicer.vtkMRMLSegmentationNode()
                                   slicer.mrmlScene.AddNode(seg_node)
                                   load_success = slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(ma_node, seg_node) & load_success
                                   slicer.mrmlScene.RemoveNode(ma_node)
                                   seg_node.SetName(j+"_segment")
+                                  segmentationDisplayNode = seg_node.GetDisplayNode()
+                                  segmentationDisplayNode.VisibilityOff()
                                   labels.append([seg_node,count])
                                   #print (seg_node,count)
 
@@ -737,26 +742,34 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
     return node.GetName()
 
   def correct_volumesLoad(self,volumesNode_list,labelmapNode_list):
+
+  ## This module swaps late arterial for early arterial, or the ADC eq1 for the ADC
+  ## in instances where the latter was used to make a segmentation and loads the appropriate
+  ## background volume
     
     if labelmapNode_list[0] is not None:
       seg_name = labelmapNode_list[0].GetName()
-      if seg_name[:seg_name.find("_segment")] in self.post_T1_LA.GetName():
-        volumesNode_list[0] = self.post_T1_LA
+      if self.post_T1_LA is not None:
+        if seg_name[:seg_name.find("_segment")] in self.post_T1_LA.GetName():
+          volumesNode_list[0] = self.post_T1_LA
     
     if labelmapNode_list[1] is not None:
-      seg_name = labelmapNode_list[1].GetName()
-      if seg_name[:seg_name.find("_segment")] in self.pre_T1_LA.GetName():
-        volumesNode_list[1] = self.pre_T1_LA
+      seg_name = labelmapNode_list[1].GetName()  
+      if self.pre_T1_LA is not None:
+        if seg_name[:seg_name.find("_segment")] in self.pre_T1_LA.GetName():
+          volumesNode_list[1] = self.pre_T1_LA
 
     if labelmapNode_list[2] is not None:
       seg_name = labelmapNode_list[2].GetName()
-      if seg_name[:seg_name.find("_segment")] in self.post_ADC_Eq_1.GetName():
-        volumesNode_list[2] = self.post_ADC_Eq_1
+      if self.post_ADC_Eq_1 is not None: 
+        if seg_name[:seg_name.find("_segment")] in self.post_ADC_Eq_1.GetName():
+          volumesNode_list[2] = self.post_ADC_Eq_1
 
-    if labelmapNode_list[3] is not None:
-      seg_name = labelmapNode_list[3].GetName()
-      if seg_name[:seg_name.find("_segment")] in self.pre_ADC_Eq_1.GetName():
-        volumesNode_list[3] = self.pre_ADC_Eq_1
+    # if labelmapNode_list[3] is not None:
+    #   seg_name = labelmapNode_list[3].GetName()
+    #   if self.pre_ADC_Eq_1 is not None:
+    #     if seg_name[:seg_name.find("_segment")] in self.pre_ADC_Eq_1.GetName():
+    #       volumesNode_list[3] = self.pre_ADC_Eq_1
 
     return volumesNode_list
 
@@ -773,7 +786,6 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
                                                          self.pre_ADC_label]
 
             self.volumesLoad = self.correct_volumesLoad(self.volumesLoad,self.labelVolumesLoad)
-
             
             #Disable auto showing of master volume whenever segment editor loads or master volume is changed
             segmentEditorWidget = slicer.modules.segmenteditor.widgetRepresentation().self().editor
@@ -806,7 +818,7 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
               segNode = self.labelVolumesLoad[i]
               if self.volumesLoad[i] == None:
                 pass
-              if self.labelVolumesLoad[i] == None:
+              elif self.labelVolumesLoad[i] == None:
                 print ("No segmentation for view "+str(sliceNode.GetName()))
                 print ("Making Empty "+str(self.volumesLoad[i].GetName())+" Segmentation for view "+str(sliceNode.GetName()))
 
@@ -830,6 +842,7 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
                 print ("For this view: "+str(sliceNode.GetName()))
                 print ("Show Exisiting Segment Label: "+str(segNode.GetName()))
                 segmentationDisplayNode = segNode.GetDisplayNode()
+                segmentationDisplayNode.VisibilityOn()
                 segmentationDisplayNode.SetDisplayableOnlyInView(sliceNode.GetID())
                 segNode.SetReferenceImageGeometryParameterFromVolumeNode(self.volumesLoad[i])
 
@@ -837,7 +850,6 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
               controller = layoutManager.sliceWidget(sliceViewName).sliceController()
               controller.fitSliceToBackground()
 
-          
         
             # for i,viewNode in enumerate(viewNodes):
             #     try:
@@ -1023,8 +1035,11 @@ class SlicerCaseHCCIteratorLogic(ScriptedLoadableModuleLogic):
         pass
       else:
         masterVolumeNode = node.GetNodeReference(node.GetReferenceImageGeometryReferenceRole())
-        name = masterVolumeNode.GetName()
-
+        print (nodename, node, masterVolumeNode)
+        if masterVolumeNode is not None:
+          name = masterVolumeNode.GetName()
+        else:
+          print ("PLEASE ADD THE CORRECT MASTER VOLUME TO AN EXTRA SEGMENT THAT WAS LOADED (LIKELY ADC_EQ_1)")
         # Add the readername if set
         if reader_name is not None:
           name += '_tumor_' + reader_name
